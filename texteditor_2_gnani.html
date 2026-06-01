@@ -1,0 +1,1040 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Notepad</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-color: #09090c;
+            --text-color: #e2e8f0;
+            --caret-color: #38bdf8;
+            --ui-color: #71717a;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body, html {
+            width: 100vw;
+            height: 100vh;
+            overflow: hidden;
+            background-color: var(--bg-color);
+            font-family: 'Inter', -apple-system, sans-serif;
+            color: var(--text-color);
+        }
+
+        /* Clean Editor Controls */
+        .controls {
+            position: absolute;
+            top: 1.5rem;
+            right: 2rem;
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            font-size: 0.85rem;
+            font-weight: 500;
+            color: var(--ui-color);
+            z-index: 100;
+            user-select: none;
+            transition: opacity 0.8s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+
+        /* Toggle Switch CSS */
+        .switch {
+            position: relative;
+            display: inline-block;
+            width: 38px;
+            height: 20px;
+        }
+
+        .switch input { 
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+
+        .slider {
+            position: absolute;
+            cursor: pointer;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: #27272a;
+            transition: .3s ease;
+            border-radius: 20px;
+        }
+
+        .slider:before {
+            position: absolute;
+            content: "";
+            height: 14px;
+            width: 14px;
+            left: 3px;
+            bottom: 3px;
+            background-color: #f4f4f5;
+            transition: .3s ease;
+            border-radius: 50%;
+        }
+
+        input:checked + .slider {
+            background-color: var(--caret-color);
+        }
+
+        input:checked + .slider:before {
+            transform: translateX(18px);
+        }
+
+        /* Editor container designed like blank.page */
+        #editor-container {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: opacity 0.8s ease;
+            background-color: var(--bg-color);
+            z-index: 10;
+        }
+
+        #editor {
+            width: 100%;
+            height: 100%;
+            max-width: 720px;
+            padding: 8rem 2rem;
+            outline: none;
+            caret-color: var(--caret-color);
+            line-height: 1.75;
+            font-size: 1.25rem;
+            font-family: 'Georgia', serif; 
+            white-space: pre-wrap;
+            overflow-y: auto;
+            color: #d4d4d8;
+        }
+        
+        #editor.completed {
+            caret-color: transparent;
+            user-select: none;
+        }
+
+        ::selection {
+            background-color: rgba(56, 189, 248, 0.2);
+            color: #ffffff;
+        }
+
+        /* Pretext Editorial Stage (Fades in perfectly matched in-place) */
+        #stage {
+            display: none;
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            overflow: hidden;
+            z-index: 20;
+            opacity: 0;
+            background: radial-gradient(ellipse at 50% 40%, #0c0c14 0%, #050508 100%);
+            user-select: none;
+            -webkit-user-select: none;
+            transition: opacity 1.5s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+
+        .line {
+            position: absolute;
+            white-space: pre;
+            pointer-events: none;
+            z-index: 15;
+            color: #e2e8f0;
+            font-family: 'Georgia', serif;
+        }
+
+        .headline-line {
+            position: absolute;
+            white-space: pre;
+            pointer-events: none;
+            font-weight: 700;
+            color: #fff;
+            letter-spacing: -0.5px;
+            z-index: 20;
+            font-family: 'Georgia', serif;
+            text-shadow: 0 4px 12px rgba(0,0,0,0.5);
+            opacity: 0;
+            transition: opacity 2s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+
+        /* Fully Transparent, Draggable Profile Picture */
+        .birthday-image {
+            position: absolute;
+            pointer-events: auto;
+            z-index: 30;
+            cursor: grab;
+            will-change: transform;
+            object-fit: contain;
+            user-select: none;
+            -webkit-user-drag: none;
+            filter: drop-shadow(0 15px 35px rgba(56, 189, 248, 0.25));
+        }
+
+        .birthday-image:active {
+            cursor: grabbing;
+        }
+
+        /* Float balloons styling */
+        .balloon {
+            position: absolute;
+            width: 48px;
+            height: 60px;
+            border-radius: 50% 50% 50% 50% / 40% 40% 60% 60%;
+            z-index: 25;
+            pointer-events: auto;
+            will-change: transform;
+            box-shadow: inset -6px -6px 15px rgba(0,0,0,0.15);
+            display: flex;
+            justify-content: center;
+            touch-action: none;
+            transition: box-shadow 0.3s ease, background-color 0.3s ease;
+        }
+
+        /* Golden incandescent glow inside balloon while dragging */
+        .balloon.dragging {
+            box-shadow: inset -4px -4px 10px rgba(0,0,0,0.2), 
+                        0 0 45px 15px rgba(251, 191, 36, 0.85), 
+                        inset 0 0 20px rgba(255, 255, 255, 0.9) !important;
+            background-color: rgba(251, 191, 36, 0.95) !important;
+            color: rgba(180, 83, 9, 1) !important;
+            filter: drop-shadow(0 0 10px rgba(251, 191, 36, 0.4));
+        }
+
+        .balloon::after {
+            content: "";
+            position: absolute;
+            bottom: -4px;
+            width: 0;
+            height: 0;
+            border-left: 4px solid transparent;
+            border-right: 4px solid transparent;
+            border-top: 5px solid currentColor;
+            opacity: 0.8;
+        }
+
+        .balloon-string {
+            position: absolute;
+            bottom: -60px;
+            width: 1px;
+            height: 60px;
+            background-color: rgba(255, 255, 255, 0.15);
+            pointer-events: none;
+        }
+
+        /* Decorative Glow Orbs */
+        .glow-orb {
+            position: absolute;
+            width: 300px;
+            height: 300px;
+            border-radius: 50%;
+            background: radial-gradient(circle, rgba(56, 189, 248, 0.08) 0%, rgba(0,0,0,0) 70%);
+            z-index: 2;
+            pointer-events: none;
+            filter: blur(40px);
+        }
+
+        /* Scrollbar styles */
+        ::-webkit-scrollbar {
+            width: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #27272a;
+            border-radius: 3px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #3f3f46;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="controls" id="editor-controls">
+        <label for="ai-toggle" style="cursor: pointer;">AI Word Enhancer</label>
+        <label class="switch">
+            <input type="checkbox" id="ai-toggle">
+            <span class="slider"></span>
+        </label>
+    </div>
+
+    <!-- Notepad stage -->
+    <div id="editor-container">
+        <div id="editor" contenteditable="true" spellcheck="false"></div>
+    </div>
+
+    <!-- Editorial Pretext engine stage -->
+    <div id="stage"></div>
+
+    <script>
+        // Story: Exactly 100 words celebrating Gnanadharshini (Gnani)
+        const STORY_TEXT = "Case diary #1618. It was a very cold and windy day. Cold even for the coldest place on Earth. Vision is blurred by the unprecedented heavy snowstorm which makes towering habispheres look like pimples on a snowy landscape. Every moment inside our facility is a reminder that we, humans, are not designed for this kind of extremes. And yet, while looking out through the thick window, I can make out a dark silhouette making its way through. There's no way! must be some debris. But then it hit me. Someone was left out at the digging site! The dark coat seems to be dense oil! Nasty Russians! But then again, can't blame them. In their frustration, or hopelessness, using dense oil to balance the positive pressure of the underground lake seemed plausible. But only to get blasted out with oil that contaminated the specimen. It must be that oil, but how they ended up in it? not the most concerning subject under the current circumstances. Because the presence of the sticky oil has made their gears, which are otherwise lifesaving equipments, exacerbate the situation. The bright red wind and snow resistent Thermal Aegis suit is now a dark snow-loving deathtrap. Fighting against all the odds, they're still walking, using debris as skiing sticks and wind shield, or as a sliver of hope. Either because the rescue camp thought getting out there would not better any odds, or because they just can't, the silhouette is all alone with the might of a thousand. The figure, finally slid down to the nearby control facility, after a series of careful and calculated steps signalling unmatched expertise. Within an hour, we got more information on the incident, and yes, you guessed who it is. Rescue team was waiting for her and throwing gears in the storm, yeah it wasn't debris, and stabilised her condition in no time. Another day another story to be told. She deserves some good rest. But as she believes, Earth will be in a different spot after every bout around the sun, and so will she. I wish you a better spot every year and every day! Wish you all the best on your annual solar orbital cycle.";
+        const storyWords = STORY_TEXT.trim().split(/\s+/);
+        const REPLACE_INTERVAL = 5;
+
+        // Custom narrative extension for the editorial stage to make the article flow gorgeous!
+        const EXTENDED_EDITORIAL_TEXT = STORY_TEXT + " \n\n" + 
+        "To make this look a bit better, we need more text lol, so I'm adding these here. " +
+        "Oh and remember the Pretext thing I had mentioned earlier? yeah this is that one. It's supposed to revolutionise how text is wraped in containers like chat bubbles and whatnot. Cuz the current way is resource intensive as it kinda generate a bit slip of chat and passes it through your screen rather than making them in real-time. But this one does that." +
+        "Oh by the way, feel free to grab and drag the portrait and balloons around the screen to watch the text warp around them interactively in real-time. When you hold a balloon it'll glow and when you release it, it'll go back up. You might not be reading this extra bit, as its for design purposes, but nevertheless, I'm just gonna write it here. Who knows, maybe the Future me will read this and get a small smile out of this.";
+
+        const editor = document.getElementById('editor');
+        const aiToggle = document.getElementById('ai-toggle');
+        const editorContainer = document.getElementById('editor-container');
+        const controls = document.getElementById('editor-controls');
+        const stage = document.getElementById('stage');
+        
+        let storyIndex = 0;
+        let isCompleted = false;
+        let baseWordCount = 0;
+
+        // Count words accurately
+        function getWords() {
+            return editor.innerText.trim().split(/\s+/).filter(w => w.length > 0);
+        }
+
+        // Seamless cursor positioning
+        function moveCursorToEnd() {
+            const range = document.createRange();
+            const selection = window.getSelection();
+            range.selectNodeContents(editor);
+            range.collapse(false);
+            selection.removeAllRanges();
+            selection.addRange(range);
+            editor.focus();
+        }
+
+        // Toggle state monitor (Optimized to fix initial 2-word placeholder bug)
+        aiToggle.addEventListener('change', () => {
+            if (aiToggle.checked) {
+                const currentText = editor.innerText.trim();
+                if (currentText === '' || currentText === 'Start typing...') {
+                    baseWordCount = 0;
+                } else {
+                    baseWordCount = getWords().length;
+                }
+            }
+        });
+
+        // Main input word swapping logic
+        editor.addEventListener('input', () => {
+            if (!aiToggle.checked || isCompleted) return;
+
+            let currentWords = getWords();
+            let typedCount = currentWords.length - baseWordCount;
+            
+            if (typedCount >= REPLACE_INTERVAL) {
+                const remaining = storyWords.length - storyIndex;
+                
+                // If it is the final cycle, replace with all remaining words (including odd counts)
+                if (remaining <= REPLACE_INTERVAL) {
+                    const baseTextWords = currentWords.slice(0, baseWordCount);
+                    const storyChunk = storyWords.slice(storyIndex, storyWords.length);
+                    
+                    editor.innerText = [...baseTextWords, ...storyChunk].join(' ') + ' ';
+                    moveCursorToEnd();
+
+                    storyIndex = storyWords.length;
+                    isCompleted = true;
+                    
+                    editor.contentEditable = "false";
+                    editor.classList.add('completed');
+                    editor.blur();
+                    
+                    triggerTransition();
+                } else {
+                    // Normal 5-word swaps
+                    const baseTextWords = currentWords.slice(0, baseWordCount);
+                    const storyChunk = storyWords.slice(storyIndex, storyIndex + REPLACE_INTERVAL);
+                    
+                    editor.innerText = [...baseTextWords, ...storyChunk].join(' ') + ' ';
+                    moveCursorToEnd();
+
+                    storyIndex += REPLACE_INTERVAL;
+                    baseWordCount += REPLACE_INTERVAL;
+                }
+            }
+        });
+
+        // Initialize editor behaviors
+        editor.addEventListener('focus', () => {
+            if (isCompleted) {
+                editor.blur();
+            } else if (editor.innerText.trim() === 'Start typing...') {
+                editor.innerText = '';
+            }
+        });
+
+        editor.addEventListener('blur', () => {
+            if (editor.innerText.trim() === '') {
+                editor.innerText = 'Start typing...';
+            }
+        });
+
+        window.onload = () => {
+            editor.innerText = 'Start typing...';
+            moveCursorToEnd();
+        };
+
+        // Transition out of notepad into the editorial canvas
+        function triggerTransition() {
+            // Animate only the control switch away - keeping the background perfectly seamless
+            controls.style.opacity = '0';
+            
+            // Switch in-place without fading the container out to black
+            initEditorialEngine();
+        }
+
+        /* ----------------------- EDITORIAL ENGINE LOGIC ----------------------- */
+        
+        let canvas, ctx;
+        function initPretextMeasure() {
+            canvas = document.createElement('canvas');
+            ctx = canvas.getContext('2d');
+        }
+
+        // Break text into segments & pre-measure sizes via 0-reflow canvas cache
+        function prepareWithSegments(text, font) {
+            ctx.font = font;
+            const words = text.split(/(\s+)/);
+            const segments = [];
+            for (let i = 0; i < words.length; i++) {
+                if (words[i] === "") continue;
+                segments.push({
+                    text: words[i],
+                    width: ctx.measureText(words[i]).width,
+                    isSpace: /^\s+$/.test(words[i])
+                });
+            }
+            return segments;
+        }
+
+        // Lay out next line fitting into available width
+        function layoutNextLine(segments, cursorIndex, maxWidth) {
+            if (cursorIndex >= segments.length) return null;
+            
+            let width = 0;
+            let currentIndex = cursorIndex;
+            let lineText = "";
+            
+            while (currentIndex < segments.length && segments[currentIndex].isSpace) {
+                currentIndex++;
+            }
+            
+            if (currentIndex >= segments.length) return null;
+            const startIndex = currentIndex;
+            
+            while (currentIndex < segments.length) {
+                const seg = segments[currentIndex];
+                
+                if (seg.text.includes('\n')) {
+                    if (currentIndex > startIndex) {
+                        break;
+                    } else {
+                        return { text: "", width: 0, end: currentIndex + 1 };
+                    }
+                }
+                
+                if (width + seg.width > maxWidth) {
+                    if (currentIndex === startIndex) {
+                        width += seg.width;
+                        lineText += seg.text;
+                        currentIndex++;
+                    }
+                    break;
+                }
+                
+                width += seg.width;
+                lineText += seg.text;
+                currentIndex++;
+            }
+            
+            return {
+                text: lineText.trimEnd(),
+                width: width,
+                end: currentIndex
+            };
+        }
+
+        // Helper calculations for carving slots
+        const MIN_SLOT_WIDTH = 40;
+        function carveTextLineSlots(base, blocked) {
+            let slots = [base];
+            for (let bi = 0; bi < blocked.length; bi++) {
+                const iv = blocked[bi];
+                const next = [];
+                for (let si = 0; si < slots.length; si++) {
+                    const s = slots[si];
+                    if (iv.right <= s.left || iv.left >= s.right) {
+                        next.push(s);
+                        continue;
+                    }
+                    if (iv.left > s.left)
+                        next.push({ left: s.left, right: iv.left });
+                    if (iv.right < s.right)
+                        next.push({ left: iv.right, right: s.right });
+                }
+                slots = next;
+            }
+            return slots.filter((s) => s.right - s.left >= MIN_SLOT_WIDTH);
+        }
+
+        // True Silhouette Row-by-Row Silhouette Overlay calculations
+        function silhouetteIntervalForBand(cx, cy, imgWidth, imgHeight, bandTop, bandBottom, hPad) {
+            const yMin = cy - imgHeight / 2;
+            const yMax = cy + imgHeight / 2;
+            
+            // Check vertical range intersection with image bounds
+            if (bandBottom <= yMin || bandTop >= yMax) {
+                return null;
+            }
+
+            // Figure out overlapping vertical indices scaled to 320px coordinate system
+            const overlapTop = Math.max(0, bandTop - yMin);
+            const overlapBottom = Math.min(imgHeight, bandBottom - yMin);
+            
+            const scale = 320 / imgHeight;
+            const scanYStart = Math.floor(overlapTop * scale);
+            const scanYEnd = Math.min(319, Math.ceil(overlapBottom * scale));
+
+            let minLeft = 320;
+            let maxRight = 0;
+            let hasOpaquePixels = false;
+
+            for (let sy = scanYStart; sy <= scanYEnd; sy++) {
+                const row = opaqueBoundsCache[sy];
+                if (row && row.left !== -1) {
+                    if (row.left < minLeft) minLeft = row.left;
+                    if (row.right > maxRight) maxRight = row.right;
+                    hasOpaquePixels = true;
+                }
+            }
+
+            if (!hasOpaquePixels) return null;
+
+            // Translate back into screen-space coordinates
+            const screenLeft = (minLeft / 320) * imgWidth;
+            const screenRight = (maxRight / 320) * imgWidth;
+
+            const obstacleXMin = cx - imgWidth / 2 + screenLeft - hPad;
+            const obstacleXMax = cx - imgWidth / 2 + screenRight + hPad;
+
+            return { left: obstacleXMin, right: obstacleXMax };
+        }
+
+        // Circular Obstacle boundary warping (For Balloons)
+        function circleIntervalForBand(cx, cy, r, bandTop, bandBottom, hPad, vPad) {
+            const top = bandTop - vPad;
+            const bottom = bandBottom + vPad;
+            if (top >= cy + r || bottom <= cy - r)
+                return null;
+            const minDy = cy >= top && cy <= bottom ? 0 : cy < top ? top - cy : cy - bottom;
+            if (minDy >= r)
+                return null;
+            const maxDx = Math.sqrt(r * r - minDy * minDy);
+            return { left: cx - maxDx - hPad, right: cx + maxDx + hPad };
+        }
+
+        // Main layout generator loop for single column (circular & silhouette obstacles)
+        function layoutColumn(prepared, startCursor, regionX, regionY, regionW, regionH, lineHeight, circleObstacles, imgObstacle) {
+            let cursor = startCursor;
+            let lineTop = regionY;
+            const lines = [];
+            let textExhausted = false;
+            
+            while (lineTop + lineHeight <= regionY + regionH && !textExhausted) {
+                const bandTop = lineTop;
+                const bandBottom = lineTop + lineHeight;
+                const blocked = [];
+                
+                // Silhouette image collision
+                if (imgObstacle) {
+                    const iv = silhouetteIntervalForBand(
+                        imgObstacle.cx, 
+                        imgObstacle.cy, 
+                        imgObstacle.w, 
+                        imgObstacle.h, 
+                        bandTop, 
+                        bandBottom, 
+                        imgObstacle.hPad
+                    );
+                    if (iv !== null) {
+                        blocked.push(iv);
+                    }
+                }
+
+                // Balloons collisions
+                for (let ci = 0; ci < circleObstacles.length; ci++) {
+                    const c = circleObstacles[ci];
+                    const iv = circleIntervalForBand(c.cx, c.cy, c.r, bandTop, bandBottom, c.hPad, c.vPad);
+                    if (iv !== null) {
+                        blocked.push(iv);
+                    }
+                }
+                
+                const slots = carveTextLineSlots({ left: regionX, right: regionX + regionW }, blocked);
+                if (slots.length === 0) {
+                    lineTop += lineHeight;
+                    continue;
+                }
+                
+                slots.sort((a, b) => a.left - b.left);
+                for (let si = 0; si < slots.length; si++) {
+                    const slot = slots[si];
+                    const slotWidth = slot.right - slot.left;
+                    const line = layoutNextLine(prepared, cursor, slotWidth);
+                    if (line === null) {
+                        textExhausted = true;
+                        break;
+                    }
+                    lines.push({ 
+                        x: Math.round(slot.left), 
+                        y: Math.round(lineTop), 
+                        text: line.text, 
+                        width: line.width 
+                    });
+                    cursor = line.end;
+                }
+                lineTop += lineHeight;
+            }
+            return { lines, cursor };
+        }
+
+        // Fit headline with dynamic size constraints (Binary search)
+        let cachedHeadlineFontSize = 32;
+        let cachedHeadlineLines = [];
+        const HEADLINE_TEXT = "HAPPY BIRTHDAY, GNANI";
+
+        function fitHeadline(maxWidth, maxHeight) {
+            let lo = 20, hi = 72, best = lo;
+            let bestLines = [];
+            while (lo <= hi) {
+                const size = Math.floor((lo + hi) / 2);
+                const font = `700 ${size}px 'Georgia', serif`;
+                const lh = Math.round(size * 1.1);
+                ctx.font = font;
+                
+                const prepared = prepareWithSegments(HEADLINE_TEXT, font);
+                let lineCount = 0;
+                
+                let cursor = 0;
+                while (cursor < prepared.length) {
+                    let line = layoutNextLine(prepared, cursor, maxWidth);
+                    if (!line) break;
+                    lineCount++;
+                    cursor = line.end;
+                }
+                
+                const totalH = lineCount * lh;
+                if (totalH <= maxHeight) {
+                    best = size;
+                    lo = size + 1;
+                } else {
+                    hi = size - 1;
+                }
+            }
+            
+            const bestFont = `700 ${best}px 'Georgia', serif`;
+            const lh = Math.round(best * 1.1);
+            const prepared = prepareWithSegments(HEADLINE_TEXT, bestFont);
+            let cursor = 0;
+            let yOffset = 0;
+            bestLines = [];
+            while (cursor < prepared.length) {
+                let line = layoutNextLine(prepared, cursor, maxWidth);
+                if (!line) break;
+                bestLines.push({ x: 0, y: yOffset, text: line.text, width: line.width });
+                yOffset += lh;
+                cursor = line.end;
+            }
+            
+            return { fontSize: best, lines: bestLines };
+        }
+
+        // Elements pooling system to run 60FPS DOM writes with 0 structural creation overhead
+        const linePool = [];
+        const headlinePool = [];
+        function syncPool(pool, count, className) {
+            while (pool.length < count) {
+                const el = document.createElement("div");
+                el.className = className;
+                stage.appendChild(el);
+                pool.push(el);
+            }
+            for (let i = 0; i < pool.length; i++) {
+                pool[i].style.display = i < count ? "" : "none";
+            }
+        }
+
+        let bodyFontPrepared;
+        const BODY_FONT = '15px "Georgia", serif';
+        const BODY_LINE_HEIGHT = 26;
+        const GUTTER = 32;
+
+        // Image Obstacle parameters (represented as a dynamic circular obstacle)
+        let imgObstacle = { cx: 0, cy: 0, w: 260, h: 260, hPad: 14 };
+        let imgEl;
+        let imageFloatY = 0;
+        let targetFloatY = 0;
+        let reachedCenter = false;
+
+        // Dragging states
+        let isDraggingImg = false;
+        let dragStartX = 0, dragStartY = 0;
+        let imgStartCx = 0, imgStartCy = 0;
+
+        let activeDraggedBalloon = null;
+        let balloonDragOffsetX = 0;
+        let balloonDragOffsetY = 0;
+
+        // Alpha channel bounds array to store opacity thresholds (320px grid)
+        const opaqueBoundsCache = [];
+
+        // Balloons parameters
+        const balloons = [];
+        let lastBalloonSpawn = 0;
+
+        // Preload Image and precalculate alpha threshold bounds
+        function precalculateAlphaSilhouette(imageAsset) {
+            const tempCvs = document.createElement('canvas');
+            const tempCtx = tempCvs.getContext('2d');
+            const size = 320;
+            tempCvs.width = size;
+            tempCvs.height = size;
+            
+            tempCtx.drawImage(imageAsset, 0, 0, size, size);
+            const imgData = tempCtx.getImageData(0, 0, size, size).data;
+            
+            for (let y = 0; y < size; y++) {
+                let leftmost = -1;
+                let rightmost = -1;
+                
+                // Scan left to right for first opaque pixel
+                for (let x = 0; x < size; x++) {
+                    const alpha = imgData[(y * size + x) * 4 + 3];
+                    if (alpha > 20) { // alpha channel visibility threshold
+                        leftmost = x;
+                        break;
+                    }
+                }
+                
+                // Scan right to left for last opaque pixel
+                for (let x = size - 1; x >= 0; x--) {
+                    const alpha = imgData[(y * size + x) * 4 + 3];
+                    if (alpha > 20) {
+                        rightmost = x;
+                        break;
+                    }
+                }
+                opaqueBoundsCache.push({ left: leftmost, right: rightmost });
+            }
+        }
+
+        function initEditorialEngine() {
+            initPretextMeasure();
+
+            // Set up clean background state matching notepad editor 1:1
+            stage.style.display = 'block';
+            stage.offsetHeight; // force DOM update trigger
+
+            // Create Glow Background Orbs
+            for (let i = 0; i < 3; i++) {
+                const orb = document.createElement('div');
+                orb.className = 'glow-orb';
+                orb.style.left = `${Math.random() * 80}%`;
+                orb.style.top = `${Math.random() * 80}%`;
+                stage.appendChild(orb);
+            }
+
+            // Create Floating Transparent Greeting Image (With updated clean cropped source)
+            imgEl = document.createElement('img');
+            imgEl.src = 'https://i.ibb.co/twhZV4V1/gnani-birthday-croped.png';
+            imgEl.className = 'birthday-image';
+            imgEl.crossOrigin = 'anonymous'; // support cors for image processing
+            
+            imgEl.onload = () => {
+                precalculateAlphaSilhouette(imgEl);
+            };
+            imgEl.onerror = () => {
+                // Fallback rendering placeholder
+                imgEl.src = "https://placehold.co/320x320/222222/FFFFFF?text=Happy+Birthday+Gnani!";
+                setTimeout(() => precalculateAlphaSilhouette(imgEl), 100);
+            };
+            stage.appendChild(imgEl);
+
+            // Setup pointer down event listener for dragging image
+            imgEl.addEventListener('pointerdown', (e) => {
+                isDraggingImg = true;
+                dragStartX = e.clientX;
+                dragStartY = e.clientY;
+                imgStartCx = imgObstacle.cx;
+                imgStartCy = imgObstacle.cy;
+                e.preventDefault();
+            });
+
+            // Global move event
+            window.addEventListener('pointermove', (e) => {
+                if (isDraggingImg) {
+                    const dx = e.clientX - dragStartX;
+                    const dy = e.clientY - dragStartY;
+                    
+                    // Update target center position interactively
+                    imgObstacle.cx = imgStartCx + dx;
+                    imgObstacle.cy = imgStartCy + dy;
+
+                    // Bound layout to visible area to avoid running off screen completely
+                    imgObstacle.cx = Math.max(50, Math.min(window.innerWidth - 50, imgObstacle.cx));
+                    imgObstacle.cy = Math.max(50, Math.min(window.innerHeight - 50, imgObstacle.cy));
+
+                    // Sync parameters to halt auto centering overrides
+                    reachedCenter = true;
+                    imageFloatY = imgObstacle.cy;
+                    targetFloatY = imgObstacle.cy;
+                } else if (activeDraggedBalloon) {
+                    // Smooth tracking with offset correction so balloon center doesn't snap suddenly
+                    const tx = e.clientX - balloonDragOffsetX;
+                    const ty = e.clientY - balloonDragOffsetY;
+                    
+                    activeDraggedBalloon.draggedX = tx;
+                    activeDraggedBalloon.draggedY = ty;
+                    
+                    // Keep base coordinates synchronized to prevent sudden snapping when released
+                    activeDraggedBalloon.x = tx;
+                }
+            });
+
+            // Global release event
+            window.addEventListener('pointerup', () => {
+                if (isDraggingImg) {
+                    isDraggingImg = false;
+                }
+                if (activeDraggedBalloon) {
+                    activeDraggedBalloon.el.style.cursor = 'grab';
+                    activeDraggedBalloon.el.classList.remove('dragging'); // Turn off golden incandescent glow
+                    activeDraggedBalloon = null;
+                }
+            });
+
+            // Pre-measure the entire content text
+            bodyFontPrepared = prepareWithSegments(EXTENDED_EDITORIAL_TEXT, BODY_FONT);
+
+            const pw = window.innerWidth;
+            const ph = window.innerHeight;
+
+            // Start image from off-screen bottom
+            imageFloatY = ph + 300;
+            targetFloatY = ph * 0.52; // Float to comfortable reading middle center
+
+            // Default horizontal center starting coordinate
+            imgObstacle.cx = pw / 2;
+
+            // Switch visibility instantly - creating an absolute seamless morph transition
+            stage.style.opacity = '1';
+            editorContainer.style.opacity = '0';
+            
+            setTimeout(() => {
+                editorContainer.style.display = 'none';
+                
+                // Fade in headline once live engine renders
+                const headlines = document.querySelectorAll('.headline-line');
+                headlines.forEach(hl => hl.style.opacity = '1');
+            }, 300);
+
+            requestAnimationFrame(renderLoop);
+        }
+
+        // Spawn a floating party balloon
+        function spawnBalloon() {
+            const pw = window.innerWidth;
+            const ph = window.innerHeight;
+
+            const el = document.createElement('div');
+            el.className = 'balloon';
+            el.style.cursor = 'grab';
+            
+            const hue = Math.floor(Math.random() * 360);
+            el.style.backgroundColor = `hsla(${hue}, 85%, 60%, 0.65)`;
+            el.style.color = `hsla(${hue}, 85%, 45%, 0.8)`;
+            
+            const string = document.createElement('div');
+            string.className = 'balloon-string';
+            el.appendChild(string);
+
+            stage.appendChild(el);
+
+            const b = {
+                el: el,
+                x: Math.random() * (pw - 120) + 60,
+                y: ph + 100,
+                speed: Math.random() * 1.5 + 1.2,
+                swaySpeed: Math.random() * 0.015 + 0.008,
+                swayWidth: Math.random() * 24 + 12,
+                phase: Math.random() * 100,
+                currentX: 0,
+                draggedX: 0,
+                draggedY: 0
+            };
+
+            el.addEventListener('pointerdown', (e) => {
+                activeDraggedBalloon = b;
+                
+                // Add the incandescent gold glow class
+                el.classList.add('dragging');
+                
+                // Calculate grab offsets to ensure perfect dragging tracking
+                balloonDragOffsetX = e.clientX - b.currentX;
+                balloonDragOffsetY = e.clientY - b.y;
+                
+                b.draggedX = b.currentX;
+                b.draggedY = b.y;
+                el.style.cursor = 'grabbing';
+                
+                e.stopPropagation(); // prevent triggering image drag
+                e.preventDefault();
+            });
+
+            balloons.push(b);
+        }
+
+        // Main Animation loop running at 60fps
+        function renderLoop(now) {
+            const pw = window.innerWidth;
+            const ph = window.innerHeight;
+
+            // 1. Image float/physics handling
+            if (!isDraggingImg) {
+                if (!reachedCenter) {
+                    imageFloatY += (targetFloatY - imageFloatY) * 0.04;
+                    if (Math.abs(imageFloatY - targetFloatY) < 2) {
+                        imageFloatY = targetFloatY;
+                        reachedCenter = true;
+                    }
+                } else {
+                    // Subtle harmonic breathing bobbing once centered and idling
+                    imageFloatY = targetFloatY + Math.sin(now * 0.002) * 8;
+                }
+                imgObstacle.cy = imageFloatY;
+            }
+
+            // Adjust size adaptively
+            const imgSize = Math.min(260, pw - 64);
+            imgObstacle.w = imgSize; 
+            imgObstacle.h = imgSize; 
+
+            imgEl.style.left = `${imgObstacle.cx - imgSize/2}px`;
+            imgEl.style.top = `${imgObstacle.cy - imgSize/2}px`;
+            imgEl.style.width = `${imgSize}px`;
+            imgEl.style.height = `${imgSize}px`;
+
+            // 2. Generate text layout in a single clean readable column
+            const maxWidth = Math.min(pw - GUTTER * 2, 700);
+            const contentLeft = Math.round((pw - maxWidth) / 2);
+
+            // Fit the headline
+            const maxHeadlineH = 80;
+            const { fontSize: hlSize, lines: hlLines } = fitHeadline(maxWidth, maxHeadlineH);
+            const hlLineHeight = Math.round(hlSize * 1.1);
+            const hlFont = `700 ${hlSize}px 'Georgia', serif`;
+
+            syncPool(headlinePool, hlLines.length, "headline-line");
+            for (let i = 0; i < hlLines.length; i++) {
+                const el = headlinePool[i];
+                const line = hlLines[i];
+                el.textContent = line.text;
+                el.style.left = `${contentLeft}px`;
+                el.style.top = `${GUTTER + line.y}px`;
+                el.style.font = hlFont;
+                el.style.lineHeight = `${hlLineHeight}px`;
+            }
+
+            const bodyTop = GUTTER + (hlLines.length * hlLineHeight) + 24;
+            const bodyHeight = ph - bodyTop - 40;
+
+            // Gather active circular balloon obstacles
+            const circleObstacles = [];
+
+            // 3. Move and process party balloons
+            if (reachedCenter) {
+                if (now - lastBalloonSpawn > 4000) {
+                    spawnBalloon();
+                    lastBalloonSpawn = now;
+                }
+            }
+
+            for (let i = balloons.length - 1; i >= 0; i--) {
+                const b = balloons[i];
+                let currentX;
+
+                if (b === activeDraggedBalloon) {
+                    currentX = b.draggedX;
+                    b.y = b.draggedY;
+                } else {
+                    b.y -= b.speed;
+                    b.phase += b.swaySpeed;
+                    currentX = b.x + Math.sin(b.phase) * b.swayWidth;
+                }
+
+                b.currentX = currentX;
+                b.el.style.transform = `translate3d(${currentX}px, ${b.y}px, 0)`;
+
+                // Add active balloon coordinates as circular text wrap obstacles
+                circleObstacles.push({
+                    cx: currentX + 24, // half balloon width (48px)
+                    cy: b.y + 30,      // half balloon height (60px)
+                    r: 32,             // visual warping padding radius
+                    hPad: 12,
+                    vPad: 6
+                });
+
+                // Clean up balloons floating off viewport
+                if (b.y < -150 && b !== activeDraggedBalloon) {
+                    b.el.remove();
+                    balloons.splice(i, 1);
+                }
+            }
+
+            // Run Pretext Layout calculations
+            const result = layoutColumn(
+                bodyFontPrepared, 
+                0, 
+                contentLeft, 
+                bodyTop, 
+                maxWidth, 
+                bodyHeight, 
+                BODY_LINE_HEIGHT, 
+                circleObstacles,
+                imgObstacle
+            );
+
+            // Sync Pretext lines directly to the DOM elements pool
+            syncPool(linePool, result.lines.length, "line");
+            for (let i = 0; i < result.lines.length; i++) {
+                const el = linePool[i];
+                const line = result.lines[i];
+                el.textContent = line.text;
+                el.style.left = `${line.x}px`;
+                el.style.top = `${line.y}px`;
+                el.style.font = BODY_FONT;
+                el.style.lineHeight = `${BODY_LINE_HEIGHT}px`;
+            }
+
+            requestAnimationFrame(renderLoop);
+        }
+
+    </script>
+</body>
+</html>
